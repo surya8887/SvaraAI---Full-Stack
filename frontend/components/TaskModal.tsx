@@ -1,13 +1,18 @@
-// components/TaskModal.tsx
 "use client";
 import React, { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { Task, Priority, Status } from "@/types";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
-import { Select } from "./ui/select";
 import { Button } from "./ui/button";
 import { Dialog } from "./ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import api from "@/lib/api";
 
 type Props = {
@@ -33,8 +38,8 @@ export default function TaskModal({ open, onClose, onSaved, initial, projectId }
       description: "",
       priority: "medium",
       status: "todo",
-      deadline: ""
-    }
+      deadline: "",
+    },
   });
 
   useEffect(() => {
@@ -44,23 +49,29 @@ export default function TaskModal({ open, onClose, onSaved, initial, projectId }
         description: initial.description || "",
         priority: initial.priority,
         status: initial.status,
-        deadline: initial.deadline ? initial.deadline.split("T")[0] : ""
+        deadline: initial.deadline ? initial.deadline.split("T")[0] : "",
       });
     } else {
-      form.reset({});
+      form.reset({
+        title: "",
+        description: "",
+        priority: "medium",
+        status: "todo",
+        deadline: "",
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial]);
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
+      let res;
       if (initial) {
-        const res = await api.patch(`/tasks/${initial.id}`, values);
-        onSaved(res.data);
+        res = await api.patch(`/tasks/${initial.id}`, values);
       } else {
-        const res = await api.post("/tasks", { ...values, projectId });
-        onSaved(res.data);
+        res = await api.post("/tasks", { ...values, projectId });
       }
+      onSaved(res.data);
       onClose();
     } catch (err) {
       console.error(err);
@@ -70,50 +81,83 @@ export default function TaskModal({ open, onClose, onSaved, initial, projectId }
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
-      <div className="p-6">
-        <h3 className="text-lg font-semibold mb-4">{initial ? "Edit Task" : "Create Task"}</h3>
-        <form onSubmit={onSubmit} className="space-y-3">
+      <div className="p-6 w-full max-w-md sm:max-w-full">
+        <h3 className="text-lg font-bold mb-5">{initial ? "Edit Task" : "Create Task"}</h3>
+        <form onSubmit={onSubmit} className="space-y-4">
+          {/* Title */}
           <div>
-            <label className="block text-sm mb-1">Title</label>
-            <Input {...form.register("title", { required: true })} />
+            <label className="block text-sm font-medium mb-1">Title</label>
+            <Input {...form.register("title", { required: true })} placeholder="Task title" />
           </div>
 
+          {/* Description */}
           <div>
-            <label className="block text-sm mb-1">Description</label>
-            <Textarea {...form.register("description")} />
+            <label className="block text-sm font-medium mb-1">Description</label>
+            <Textarea
+              {...form.register("description")}
+              placeholder="Optional task description"
+              rows={3}
+            />
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          {/* Dropdowns */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {/* Priority */}
             <div>
-              <label className="block text-sm mb-1">Priority</label>
-              <Select {...form.register("priority")}>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </Select>
+              <label className="block text-sm font-medium mb-1">Priority</label>
+              <Controller
+                control={form.control}
+                name="priority"
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
 
+            {/* Status */}
             <div>
-              <label className="block text-sm mb-1">Status</label>
-              <Select {...form.register("status")}>
-                <option value="todo">To do</option>
-                <option value="in-progress">In progress</option>
-                <option value="done">Done</option>
-              </Select>
+              <label className="block text-sm font-medium mb-1">Status</label>
+              <Controller
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todo">To do</SelectItem>
+                      <SelectItem value="in-progress">In progress</SelectItem>
+                      <SelectItem value="done">Done</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
 
+            {/* Deadline */}
             <div>
-              <label className="block text-sm mb-1">Deadline</label>
+              <label className="block text-sm font-medium mb-1">Deadline</label>
               <Input type="date" {...form.register("deadline")} />
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" type="button" onClick={onClose}>
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-primary text-white">
-              {initial ? "Save" : "Create"}
+            <Button type="submit" className="bg-primary text-white hover:bg-primary/90">
+              {initial ? "Save Task" : "Create Task"}
             </Button>
           </div>
         </form>

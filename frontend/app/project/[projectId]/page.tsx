@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import api from "@/lib/api";
@@ -28,30 +29,51 @@ const STATUSES = [
 
 export default function ProjectBoardPage() {
   const { projectId } = useParams();
-  const projectIdStr = Array.isArray(projectId) ? projectId[0] : projectId;
+  const projectIdStr = (Array.isArray(projectId) ? projectId[0] : projectId)
+    ?.trim();
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [editing, setEditing] = useState<Task | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  // Fetch tasks on mount or when projectId changes
   useEffect(() => {
     (async () => {
-      if (!projectId) return;
+      if (!projectIdStr) return;
+      setLoading(true);
+      setError(null);
       try {
-        const res = await api.get(`/tasks?projectId=${projectId}`);
-        setTasks(res.data);
+        const res = await api.get(`/tasks`);
+        setTasks(res.data.data || []);
       } catch (err) {
         console.error("Failed to fetch tasks", err);
+        setError("Failed to load tasks.");
+      } finally {
+        setLoading(false);
       }
     })();
-  }, [projectId]);
+  }, [projectIdStr]);
 
+  // Handle drag and drop
   const onDragEnd = async (res: DropResult) => {
-    const { destination, draggableId } = res;
+    const { destination, source, draggableId } = res;
     if (!destination) return;
 
     const newStatus = destination.droppableId as Task["status"];
+    // If dropped in same column and same index, do nothing
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
+      return;
+    }
 
-    // optimistic update
+    // Keep a copy to rollback if needed
+    const prevTasks = [...tasks];
+
+    // Optimistic update: move task's status (and position within its column is not preserved here)
     setTasks((prev) =>
       prev.map((t) => (t.id === draggableId ? { ...t, status: newStatus } : t))
     );
@@ -60,20 +82,36 @@ export default function ProjectBoardPage() {
       await api.patch(`/tasks/${draggableId}`, { status: newStatus });
     } catch (err) {
       console.error("Failed to update task status", err);
-      const r = await api.get(`/tasks?projectId=${projectId}`);
-      setTasks(r.data);
+      // Rollback to previous state (or re-fetch)
+      try {
+        const r = await api.get(`/tasks/${projectIdStr}`);
+        setTasks(r.data.data || []);
+      } catch (fetchErr) {
+        console.error("Failed to refetch tasks after update failure", fetchErr);
+        setTasks(prevTasks);
+      }
     }
   };
 
+  // Delete task
   const deleteTask = async (id: string) => {
+    const confirmed = true; 
+    if (!confirmed) return;
+
+    // Optimistic remove
+    const prev = [...tasks];
+    setTasks((p) => p.filter((t) => t.id !== id));
+
     try {
       await api.delete(`/tasks/${id}`);
-      setTasks((p) => p.filter((t) => t.id !== id));
     } catch (err) {
       console.error("Failed to delete task", err);
+      // rollback
+      setTasks(prev);
     }
   };
 
+  // Save task (add or edit)
   const saveTask = (saved: Task) => {
     const exists = tasks.some((t) => t.id === saved.id);
     if (exists) {
@@ -88,65 +126,87 @@ export default function ProjectBoardPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">Project Board</h2>
-        <Button className="bg-green-600 text-white hover:bg-green-700" onClick={() => setAddOpen(true)}>
+        <Button
+          className="bg-green-600 text-white hover:bg-green-700"
+          onClick={() => setAddOpen(true)}
+        >
           <Plus className="mr-2 h-4 w-4" /> Add Task
         </Button>
       </div>
+
+      {/* Loading / Error */}
+      {loading && <div className="mb-4">Loading tasks...</div>}
+      {error && <div className="mb-4 text-red-600">{error}</div>}
 
       {/* Kanban Board */}
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {STATUSES.map((col) => (
             <Droppable droppableId={col.key} key={col.key}>
-              {(provided) => (
-                <div
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                  className="bg-gray-50 rounded-2xl p-4 shadow-sm min-h-[350px] border"
-                >
-                  <h3 className="text-lg font-semibold mb-4">{col.title}</h3>
-                  <div className="space-y-3">
-                    {tasks
-                      .filter((t) => t.status === col.key)
-                      .map((task, i) => (
-                        <Draggable key={task.id} draggableId={task.id} index={i}>
-                          {(pd) => (
-                            <div
-                              ref={pd.innerRef}
-                              {...pd.draggableProps}
-                              {...pd.dragHandleProps}
-                              className="bg-white rounded-xl p-3 shadow hover:shadow-md transition"
-                            >
-                              <div className="flex justify-between items-center">
-                                <TaskCard task={task} />
-                                {/* Dropdown for Task Actions */}
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon">
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => setEditing(task)}>
-                                      Edit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      className="text-red-600"
-                                      onClick={() => deleteTask(task.id)}
-                                    >
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+              {(provided, snapshot) => {
+                const columnTasks = tasks.filter((t) => t.status === col.key);
+                return (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className={`bg-gray-50 rounded-2xl p-4 shadow-sm min-h-[350px] border ${
+                      snapshot.isDraggingOver ? "ring-2 ring-blue-300" : ""
+                    }`}
+                  >
+                    <h3 className="text-lg font-semibold mb-4">{col.title}</h3>
+                    <div className="space-y-3">
+                      {columnTasks.length === 0 && !loading ? (
+                        <div className="text-sm text-gray-500">No tasks</div>
+                      ) : (
+                        columnTasks.map((task, i) => (
+                          <Draggable
+                            key={task.id}
+                            draggableId={String(task.id)}
+                            index={i}
+                          >
+                            {(pd, snapshotDraggable) => (
+                              <div
+                                ref={pd.innerRef}
+                                {...pd.draggableProps}
+                                {...pd.dragHandleProps}
+                                className="bg-white rounded-xl p-3 shadow hover:shadow-md transition"
+                              >
+                                <div className="flex justify-between items-start relative">
+                                  {/* Task card */}
+                                  <TaskCard task={task} />
+
+                                  {/* Dropdown for Task Actions */}
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem
+                                        onClick={() => setEditing(task)}
+                                      >
+                                        Edit
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        className="text-red-600"
+                                        onClick={() => deleteTask(task.id)}
+                                      >
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                    {provided.placeholder}
+                            )}
+                          </Draggable>
+                        ))
+                      )}
+                      {provided.placeholder}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              }}
             </Droppable>
           ))}
         </div>
@@ -163,7 +223,10 @@ export default function ProjectBoardPage() {
         <TaskModal
           open={!!editing}
           onClose={() => setEditing(null)}
-          onSaved={saveTask}
+          onSaved={(saved) => {
+            saveTask(saved);
+            setEditing(null);
+          }}
           initial={editing}
         />
       )}

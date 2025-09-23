@@ -11,9 +11,9 @@ export default function DashboardPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [pRes, tRes] = await Promise.all([api.get("/projects/"), api.get("/tasks")]);
-        setProjects(pRes.data);
-        setTasks(tRes.data);
+        const [pRes, tRes] = await Promise.all([api.get("/projects/"),api.get('/tasks/')]);
+        setProjects(pRes.data.data);
+        setTasks(tRes.data.data);
       } catch (err) {
         console.error(err);
       }
