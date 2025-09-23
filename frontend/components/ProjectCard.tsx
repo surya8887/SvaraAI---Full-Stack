@@ -16,7 +16,7 @@ export default function ProjectCard({ project }: { project: Project }) {
         <p className="text-sm text-gray-600 mb-4">{project.description}</p>
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">{project.createdAt ? new Date(project.createdAt).toLocaleDateString() : ""}</span>
-          <Link href={`/projects/${project.id}`} className="text-sm text-primary">
+          <Link href={`/project/${project._id}`} className="text-sm text-primary">
             Open
           </Link>
         </div>

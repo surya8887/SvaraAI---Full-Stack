@@ -4,12 +4,12 @@ export type Status = "todo" | "in-progress" | "done";
 
 export interface User {
   id: string;
-  usrname: string;
+  username: string;
   email: string;
 }
 
 export interface Project {
-  id: string;
+  _id: string;
   name: string;
   description?: string;
   createdAt?: string;
