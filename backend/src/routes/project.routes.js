@@ -7,3 +7,4 @@ router.post("/", authMiddleware, createProject);
 router.get("/", authMiddleware, listProjects);
 router.delete("/:projectId", authMiddleware, deleteProject);
 export default router;
+

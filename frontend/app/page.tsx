@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 import React, { useEffect, useState } from "react";
 import api from "@/lib/api";
@@ -12,7 +11,7 @@ export default function DashboardPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [pRes, tRes] = await Promise.all([api.get("/projects"), api.get("/tasks")]);
+        const [pRes, tRes] = await Promise.all([api.get("/projects/"), api.get("/tasks")]);
         setProjects(pRes.data);
         setTasks(tRes.data);
       } catch (err) {

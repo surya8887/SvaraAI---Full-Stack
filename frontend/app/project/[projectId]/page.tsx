@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import api from "@/lib/api";
 import type { Task } from "@/types";
-import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import TaskCard from "@/components/TaskCard";
 import TaskModal from "@/components/TaskModal";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 const STATUSES = [
   { key: "todo", title: "To do" },
   { key: "in-progress", title: "In progress" },
-  { key: "done", title: "Done" }
+  { key: "done", title: "Done" },
 ] as const;
 
 export default function ProjectBoardPage() {
@@ -29,7 +29,7 @@ export default function ProjectBoardPage() {
         const res = await api.get(`/tasks?projectId=${projectId}`);
         setTasks(res.data);
       } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch tasks", err);
       }
     })();
   }, [projectId]);
@@ -37,11 +37,18 @@ export default function ProjectBoardPage() {
   const onDragEnd = async (res: DropResult) => {
     const { destination, draggableId } = res;
     if (!destination) return;
+
     const newStatus = destination.droppableId as Task["status"];
-    setTasks((prev) => prev.map((t) => (t.id === draggableId ? { ...t, status: newStatus } : t)));
+
+    // optimistic update
+    setTasks((prev) =>
+      prev.map((t) => (t.id === draggableId ? { ...t, status: newStatus } : t))
+    );
+
     try {
       await api.patch(`/tasks/${draggableId}`, { status: newStatus });
-    } catch {
+    } catch (err) {
+      console.error("Failed to update task status", err);
       // revert on failure
       const r = await api.get(`/tasks?projectId=${projectId}`);
       setTasks(r.data);
@@ -53,25 +60,26 @@ export default function ProjectBoardPage() {
       await api.delete(`/tasks/${id}`);
       setTasks((p) => p.filter((t) => t.id !== id));
     } catch (err) {
-      console.error(err);
+      console.error("Failed to delete task", err);
     }
   };
 
   const saveTask = (saved: Task) => {
     const exists = tasks.some((t) => t.id === saved.id);
-    if (exists) setTasks((p) => p.map((t) => (t.id === saved.id ? saved : t)));
-    else setTasks((p) => [saved, ...p]);
+    if (exists) {
+      setTasks((p) => p.map((t) => (t.id === saved.id ? saved : t)));
+    } else {
+      setTasks((p) => [saved, ...p]);
+    }
   };
 
   return (
     <section>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-semibold">Project Board</h2>
-        <div>
-          <Button className="bg-green-600 text-white" onClick={() => setAddOpen(true)}>
-            Add Task
-          </Button>
-        </div>
+        <Button className="bg-green-600 text-white" onClick={() => setAddOpen(true)}>
+          Add Task
+        </Button>
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
@@ -79,18 +87,32 @@ export default function ProjectBoardPage() {
           {STATUSES.map((col) => (
             <Droppable droppableId={col.key} key={col.key}>
               {(provided) => (
-                <div ref={provided.innerRef} {...provided.droppableProps} className="bg-gray-50 p-3 rounded min-h-[300px]">
+                <div
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  className="bg-gray-50 p-3 rounded min-h-[300px]"
+                >
                   <h3 className="font-semibold mb-3">{col.title}</h3>
                   <div className="space-y-3">
-                    {tasks.filter((t) => t.status === col.key).map((task, i) => (
-                      <Draggable key={task.id} draggableId={task.id} index={i}>
-                        {(pd) => (
-                          <div ref={pd.innerRef} {...pd.draggableProps} {...pd.dragHandleProps}>
-                            <TaskCard task={task} onEdit={() => setEditing(task)} onDelete={() => deleteTask(task.id)} />
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
+                    {tasks
+                      .filter((t) => t.status === col.key)
+                      .map((task, i) => (
+                        <Draggable key={task.id} draggableId={task.id} index={i}>
+                          {(pd) => (
+                            <div
+                              ref={pd.innerRef}
+                              {...pd.draggableProps}
+                              {...pd.dragHandleProps}
+                            >
+                              <TaskCard
+                                task={task}
+                                onEdit={() => setEditing(task)}
+                                onDelete={() => deleteTask(task.id)}
+                              />
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
                     {provided.placeholder}
                   </div>
                 </div>
@@ -99,8 +121,22 @@ export default function ProjectBoardPage() {
           ))}
         </div>
       </DragDropContext>
-      <TaskModal open={addOpen} onClose={() => setAddOpen(false)} onSaved={saveTask} projectId={projectIdStr} />
-      {editing && <TaskModal open={!!editing} onClose={() => setEditing(null)} onSaved={saveTask} initial={editing} />}
+
+      <TaskModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSaved={saveTask}
+        projectId={projectIdStr}
+      />
+
+      {editing && (
+        <TaskModal
+          open={!!editing}
+          onClose={() => setEditing(null)}
+          onSaved={saveTask}
+          initial={editing}
+        />
+      )}
     </section>
   );
 }

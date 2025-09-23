@@ -1,10 +1,10 @@
-// hooks/useAuth.ts
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
 import type { User } from "@/types";
+
 interface AuthResponse {
-  token: string;
+  accessToken: string;
   user: User;
 }
 
@@ -29,15 +29,15 @@ export function useAuth() {
   useEffect(() => {
     const init = async () => {
       try {
-        const raw = localStorage.getItem("user");
+        const storedUser = localStorage.getItem("user");
         const token = localStorage.getItem("token");
-        if (token && raw) {
+        if (token && storedUser) {
           api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-          // optional token validation
           const res = await api.get<{ user: User }>("/auth/me");
           handleAuth(token, res.data.user);
         }
-      } catch {
+      } catch (err) {
+        console.error("Failed to initialize auth:", err);
         logout();
       } finally {
         setLoading(false);
@@ -46,17 +46,35 @@ export function useAuth() {
     init();
   }, [handleAuth, logout]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await api.post<AuthResponse>("/auth/login", { email, password });
-    handleAuth(res.data.token, res.data.user);
-    return res.data.user;
-  }, [handleAuth]);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      try {
+        const res = await api.post("/auth/login", { email, password });
+        console.log(res);
+        
+        handleAuth(res.data.data.accessToken, res.data.data.user);
+        return res.data.user;
+      } catch (err: any) {
+        console.error("Login failed:", err.response?.data?.message || err.message);
+        throw err;
+      }
+    },
+    [handleAuth]
+  );
 
-  const signup = useCallback(async (payload: { username: string; email: string; password: string }) => {
-    const res = await api.post<AuthResponse>("/auth/signup", payload);
-    handleAuth(res.data.token, res.data.user);
-    return res.data.user;
-  }, [handleAuth]);
+  const signup = useCallback(
+    async (payload: { username: string; email: string; password: string }) => {
+      try {
+        const res = await api.post("/auth/signup", payload);
+        handleAuth(res.data.token, res.data.user);
+        return res.data.user;
+      } catch (err: any) {
+        console.error("Signup failed:", err.response?.data?.message || err.message);
+        throw err;
+      }
+    },
+    [handleAuth]
+  );
 
   return { user, loading, login, signup, logout };
 }

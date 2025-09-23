@@ -35,6 +35,7 @@ export default function LoginPage() {
   const onSubmit = handleSubmit(async (data) => {
     try {
       await login(data.email, data.password);
+
       router.push("/");
     } catch (err) {
       setError("email", { message: "Invalid email or password" });

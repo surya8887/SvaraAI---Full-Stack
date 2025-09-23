@@ -2,7 +2,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import * as authService from "../services/auth.service.js";
 import { setTokenCookies } from "../utils/generateToken.js";
-
+import User from "../models/user.model.js";
 export const signup = asyncHandler(async (req, res) => {
   const { username, email, password } = req.body;
   const user = await authService.signupService({ username, email, password });
@@ -27,3 +27,17 @@ export const logout = asyncHandler(async (req, res) => {
   const options = { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "Strict" };
   return res.clearCookie("accessToken", options).clearCookie("refreshToken", options).status(200).json(new ApiResponse(200, {}, "User logged out"));
 });
+
+
+export const getMe = asyncHandler(async (req, res) => {
+  const userId = req.user.userId;
+
+  const user = await User.findById(userId).select("-password -refreshToken");
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  res.status(200).json(new ApiResponse(200, { user }, "User fetched successfully"));
+});
+
+
