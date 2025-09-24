@@ -181,7 +181,7 @@ export default function TaskModal({
             </Button>
             <Button
               type="submit"
-              className="bg-primary text-white hover:bg-primary/90"
+              className="bg-green-500 hover:bg-primary/90"
             >
               {initial ? "Save Task" : "Create Task"}
             </Button>

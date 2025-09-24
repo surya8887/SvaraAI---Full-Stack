@@ -146,12 +146,6 @@ export default function ProjectBoardPage() {
     <section className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">Project Board</h2>
-        <Button
-          className="bg-green-600 text-white hover:bg-green-700"
-          onClick={() => setAddOpen(true)}
-        >
-          <Plus className="mr-2 h-4 w-4" /> Add Task
-        </Button>
       </div>
 
       {loading && <div className="mb-4">Loading tasks...</div>}

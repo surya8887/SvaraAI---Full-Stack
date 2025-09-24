@@ -6,7 +6,7 @@ import { Button } from "./ui/button";
 
 export default function Header() {
   const { user, logout, loading } = useAuth();
-  // console.log(user);
+  
 
   if (loading) return null; // prevents flicker and errors
 

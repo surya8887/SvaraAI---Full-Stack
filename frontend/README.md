@@ -274,4 +274,3 @@ Developed as part of **SvaraAI Full Stack Developer Internship Assignment (2025)
 
 ---
 
-**Need Help?** Check the [backend documentation](../backend/Readme.md) for API details or the [main project README](../readme.md) for full-stack setup instructions.
