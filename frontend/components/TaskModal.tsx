@@ -31,7 +31,13 @@ type FormValues = {
   deadline?: string;
 };
 
-export default function TaskModal({ open, onClose, onSaved, initial, projectId }: Props) {
+export default function TaskModal({
+  open,
+  onClose,
+  onSaved,
+  initial,
+  projectId,
+}: Props) {
   const form = useForm<FormValues>({
     defaultValues: {
       title: "",
@@ -42,6 +48,7 @@ export default function TaskModal({ open, onClose, onSaved, initial, projectId }
     },
   });
 
+  // Populate form on edit
   useEffect(() => {
     if (initial) {
       form.reset({
@@ -65,13 +72,18 @@ export default function TaskModal({ open, onClose, onSaved, initial, projectId }
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
+      // fallback for empty priority
+      if (!values.priority) values.priority = "medium";
+      if (!values.status) values.status = "todo";
+
       let res;
-      if (initial) {
-        res = await api.patch(`/tasks/${initial.id}`, values);
+      if (initial?._id) {
+        res = await api.patch(`/tasks/${initial._id}`, values);
+        onSaved(res.data.data);
       } else {
         res = await api.post("/tasks", { ...values, projectId });
+        onSaved(res.data.data);
       }
-      onSaved(res.data);
       onClose();
     } catch (err) {
       console.error(err);
@@ -79,15 +91,26 @@ export default function TaskModal({ open, onClose, onSaved, initial, projectId }
     }
   });
 
+
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose();
+      }}
+    >
       <div className="p-6 w-full max-w-md sm:max-w-full">
-        <h3 className="text-lg font-bold mb-5">{initial ? "Edit Task" : "Create Task"}</h3>
+        <h3 className="text-lg font-bold mb-5">
+          {initial ? "Edit Task" : "Create Task"}
+        </h3>
         <form onSubmit={onSubmit} className="space-y-4">
           {/* Title */}
           <div>
             <label className="block text-sm font-medium mb-1">Title</label>
-            <Input {...form.register("title", { required: true })} placeholder="Task title" />
+            <Input
+              {...form.register("title", { required: true })}
+              placeholder="Task title"
+            />
           </div>
 
           {/* Description */}
@@ -100,7 +123,7 @@ export default function TaskModal({ open, onClose, onSaved, initial, projectId }
             />
           </div>
 
-          {/* Dropdowns */}
+          {/* Priority, Status, Deadline */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {/* Priority */}
             <div>
@@ -153,10 +176,13 @@ export default function TaskModal({ open, onClose, onSaved, initial, projectId }
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-primary text-white hover:bg-primary/90">
+            <Button
+              type="submit"
+              className="bg-primary text-white hover:bg-primary/90"
+            >
               {initial ? "Save Task" : "Create Task"}
             </Button>
           </div>

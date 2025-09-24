@@ -10,7 +10,9 @@ export const createTask = asyncHandler(async (req, res) => {
 });
 
 export const updateTask = asyncHandler(async (req, res) => {
+  
   const { taskId } = req.params;
+  console.log(taskId);
   const task = await taskService.updateTaskService(taskId, req.body);
   res.status(200).json(new ApiResponse(200, task, "Task updated"));
 });

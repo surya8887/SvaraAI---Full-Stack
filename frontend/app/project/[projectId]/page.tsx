@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import api from "@/lib/api";
@@ -38,6 +37,10 @@ export default function ProjectBoardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+
+  const normalizeTasks = (arr: any[]): Task[] =>
+    arr?.map((t) => ({ ...t })) || [];
+
   // Fetch tasks on mount or when projectId changes
   useEffect(() => {
     (async () => {
@@ -45,8 +48,10 @@ export default function ProjectBoardPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await api.get(`/tasks`);
-        setTasks(res.data.data || []);
+        const res = await api.get(`/tasks/${projectIdStr}`);
+
+        const fetchedTasks = res?.data?.data?.tasks ?? [];
+        setTasks(normalizeTasks(fetchedTasks));
       } catch (err) {
         console.error("Failed to fetch tasks", err);
         setError("Failed to load tasks.");
@@ -56,13 +61,21 @@ export default function ProjectBoardPage() {
     })();
   }, [projectIdStr]);
 
-  // Handle drag and drop
-  const onDragEnd = async (res: DropResult) => {
-    const { destination, source, draggableId } = res;
+
+  const buildColumns = (list: Task[]) => {
+    const map: Record<string, Task[]> = {};
+    STATUSES.forEach((s) => {
+      map[s.key] = list.filter((t) => t.status === s.key);
+    });
+    return map;
+  };
+
+  // Handle drag and drop (reorder + move between columns)
+  const onDragEnd = async (result: DropResult) => {
+    const { destination, source, draggableId } = result;
     if (!destination) return;
 
-    const newStatus = destination.droppableId as Task["status"];
-    // If dropped in same column and same index, do nothing
+    // same place
     if (
       destination.droppableId === source.droppableId &&
       destination.index === source.index
@@ -70,22 +83,56 @@ export default function ProjectBoardPage() {
       return;
     }
 
-    // Keep a copy to rollback if needed
     const prevTasks = [...tasks];
 
-    // Optimistic update: move task's status (and position within its column is not preserved here)
-    setTasks((prev) =>
-      prev.map((t) => (t.id === draggableId ? { ...t, status: newStatus } : t))
-    );
+    // Build column lists
+    const cols = buildColumns(tasks);
+
+    // Find task being moved
+    const draggedTask = tasks.find((t) => String(t._id) === String(draggableId));
+    if (!draggedTask) return;
+
+    // Remove from source column
+    const sourceList = Array.from(cols[source.droppableId] || []);
+    const [moved] = sourceList.splice(source.index, 1);
+
+    // Update status (if moved across columns)
+    moved.status = destination.droppableId as Task["status"];
+
+    // Insert into destination column
+    const destList = Array.from(cols[destination.droppableId] || []);
+    destList.splice(destination.index, 0, moved);
+
+    // Replace in cols
+    cols[source.droppableId] = sourceList;
+    cols[destination.droppableId] = destList;
+
+    // Flatten columns back into a single array (keep STATUSES order)
+    const newTasksFlattened: Task[] = [];
+    STATUSES.forEach((s) => {
+      newTasksFlattened.push(...(cols[s.key] || []));
+    });
+
+    // Optimistic update
+    setTasks(newTasksFlattened);
 
     try {
-      await api.patch(`/tasks/${draggableId}`, { status: newStatus });
+      console.log(draggableId);
+
+      await api.patch(`/tasks/${draggableId}`, {
+        status: moved.status,
+        position: destination.index,
+        projectId: projectIdStr,
+      });
+
+
     } catch (err) {
-      console.error("Failed to update task status", err);
-      // Rollback to previous state (or re-fetch)
+      console.error("Failed to update task status/order", err);
+      // rollback by attempting a fresh fetch, else restore prev
       try {
         const r = await api.get(`/tasks/${projectIdStr}`);
-        setTasks(r.data.data || []);
+        const fetched = r?.data?.data?.tasks ?? prevTasks;
+        setTasks(normalizeTasks(fetched));
       } catch (fetchErr) {
         console.error("Failed to refetch tasks after update failure", fetchErr);
         setTasks(prevTasks);
@@ -95,12 +142,13 @@ export default function ProjectBoardPage() {
 
   // Delete task
   const deleteTask = async (id: string) => {
-    const confirmed = true; 
+    // if you want a confirmation UI — integrate a modal; for now, we assume confirmed
+    const confirmed = true;
     if (!confirmed) return;
 
-    // Optimistic remove
     const prev = [...tasks];
-    setTasks((p) => p.filter((t) => t.id !== id));
+    // Optimistic remove
+    setTasks((p) => p.filter((t) => t._id !== id));
 
     try {
       await api.delete(`/tasks/${id}`);
@@ -111,16 +159,15 @@ export default function ProjectBoardPage() {
     }
   };
 
-  // Save task (add or edit)
+  // Save task (add or edit) — uses _id
   const saveTask = (saved: Task) => {
-    const exists = tasks.some((t) => t.id === saved.id);
+    const exists = tasks.some((t) => t._id === saved._id);
     if (exists) {
-      setTasks((p) => p.map((t) => (t.id === saved.id ? saved : t)));
+      setTasks((p) => p.map((t) => (t._id === saved._id ? saved : t)));
     } else {
       setTasks((p) => [saved, ...p]);
     }
   };
-
   return (
     <section className="p-4 md:p-6">
       {/* Header */}
@@ -149,9 +196,8 @@ export default function ProjectBoardPage() {
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className={`bg-gray-50 rounded-2xl p-4 shadow-sm min-h-[350px] border ${
-                      snapshot.isDraggingOver ? "ring-2 ring-blue-300" : ""
-                    }`}
+                    className={`bg-gray-50 rounded-2xl p-4 shadow-sm min-h-[350px] border ${snapshot.isDraggingOver ? "ring-2 ring-blue-300" : ""
+                      }`}
                   >
                     <h3 className="text-lg font-semibold mb-4">{col.title}</h3>
                     <div className="space-y-3">
@@ -160,8 +206,8 @@ export default function ProjectBoardPage() {
                       ) : (
                         columnTasks.map((task, i) => (
                           <Draggable
-                            key={task.id}
-                            draggableId={String(task.id)}
+                            key={String(task._id)}
+                            draggableId={String(task._id)}
                             index={i}
                           >
                             {(pd, snapshotDraggable) => (
@@ -183,14 +229,12 @@ export default function ProjectBoardPage() {
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                      <DropdownMenuItem
-                                        onClick={() => setEditing(task)}
-                                      >
+                                      <DropdownMenuItem onClick={() => setEditing(task)}>
                                         Edit
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         className="text-red-600"
-                                        onClick={() => deleteTask(task.id)}
+                                        onClick={() => deleteTask(String(task._id))}
                                       >
                                         Delete
                                       </DropdownMenuItem>
