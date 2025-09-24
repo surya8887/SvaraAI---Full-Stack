@@ -1,6 +1,5 @@
-// app/(auth)/login/page.tsx
 "use client";
-import api from "@/lib/api";
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,6 +16,7 @@ const schema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
   password: z.string().min(6, { message: "Password must be at least 6 characters" }),
 });
+
 type FormValues = z.infer<typeof schema>;
 
 export default function LoginPage() {
@@ -28,6 +28,7 @@ export default function LoginPage() {
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
   });
+
   const { login } = useAuth();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
@@ -35,9 +36,9 @@ export default function LoginPage() {
   const onSubmit = handleSubmit(async (data) => {
     try {
       await login(data.email, data.password);
-
       router.push("/");
-    } catch (err) {
+    } catch {
+      // removed unused `err` variable
       setError("email", { message: "Invalid email or password" });
     }
   });
@@ -60,6 +61,7 @@ export default function LoginPage() {
                 <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>
               )}
             </div>
+
             <div>
               <label className="block text-sm mb-1">Password</label>
               <div className="relative">
@@ -78,11 +80,10 @@ export default function LoginPage() {
                 </button>
               </div>
               {errors.password && (
-                <p className="text-xs text-red-500 mt-1">
-                  {errors.password.message}
-                </p>
+                <p className="text-xs text-red-500 mt-1">{errors.password.message}</p>
               )}
             </div>
+
             <Button
               type="submit"
               className="w-full bg-primary text-white rounded-xl hover:opacity-90 transition"
@@ -90,6 +91,7 @@ export default function LoginPage() {
               Log in
             </Button>
           </form>
+
           <div className="mt-6 text-center text-sm">
             Don’t have an account?{" "}
             <Link href="/signup" className="text-blue-600 font-medium hover:underline">

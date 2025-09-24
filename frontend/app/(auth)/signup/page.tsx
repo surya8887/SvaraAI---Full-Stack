@@ -1,5 +1,5 @@
-// app/(auth)/signup/page.tsx
 "use client";
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,6 +17,7 @@ const schema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
   password: z.string().min(6, { message: "Password must be at least 6 characters" }),
 });
+
 type FormValues = z.infer<typeof schema>;
 
 export default function SignupPage() {
@@ -27,16 +28,17 @@ export default function SignupPage() {
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
   });
+
   const { signup } = useAuth();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      await signup(data)
-      // console.log(data);
+      await signup(data);
       router.push("/");
-    } catch (err) {
+    } catch {
+      // removed unused `err` variable
       alert("Failed to create account");
     }
   });
@@ -59,6 +61,7 @@ export default function SignupPage() {
                 <p className="text-xs text-red-500 mt-1">{errors.username.message}</p>
               )}
             </div>
+
             <div>
               <label className="block text-sm mb-1">Email</label>
               <Input {...register("email")} placeholder="you@example.com" />
@@ -66,6 +69,7 @@ export default function SignupPage() {
                 <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>
               )}
             </div>
+
             <div>
               <label className="block text-sm mb-1">Password</label>
               <div className="relative">
@@ -87,6 +91,7 @@ export default function SignupPage() {
                 <p className="text-xs text-red-500 mt-1">{errors.password.message}</p>
               )}
             </div>
+
             <Button
               type="submit"
               className="w-full bg-primary text-white rounded-xl hover:opacity-90 transition"
@@ -94,6 +99,7 @@ export default function SignupPage() {
               Sign up
             </Button>
           </form>
+
           <div className="mt-6 text-center text-sm">
             Already have an account?{" "}
             <Link href="/login" className="text-blue-600 font-medium hover:underline">

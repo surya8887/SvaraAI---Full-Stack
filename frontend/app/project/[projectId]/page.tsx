@@ -28,8 +28,7 @@ const STATUSES = [
 
 export default function ProjectBoardPage() {
   const { projectId } = useParams();
-  const projectIdStr = (Array.isArray(projectId) ? projectId[0] : projectId)
-    ?.trim();
+  const projectIdStr = (Array.isArray(projectId) ? projectId[0] : projectId)?.trim();
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [editing, setEditing] = useState<Task | null>(null);
@@ -37,9 +36,8 @@ export default function ProjectBoardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-
-  const normalizeTasks = (arr: any[]): Task[] =>
-    arr?.map((t) => ({ ...t })) || [];
+  // Fix ESLint: replace `any` with Task[]
+  const normalizeTasks = (arr: Task[]): Task[] => arr?.map((t) => ({ ...t })) || [];
 
   // Fetch tasks on mount or when projectId changes
   useEffect(() => {
@@ -49,8 +47,7 @@ export default function ProjectBoardPage() {
       setError(null);
       try {
         const res = await api.get(`/tasks/${projectIdStr}`);
-
-        const fetchedTasks = res?.data?.data?.tasks ?? [];
+        const fetchedTasks: Task[] = res?.data?.data?.tasks ?? [];
         setTasks(normalizeTasks(fetchedTasks));
       } catch (err) {
         console.error("Failed to fetch tasks", err);
@@ -61,7 +58,6 @@ export default function ProjectBoardPage() {
     })();
   }, [projectIdStr]);
 
-
   const buildColumns = (list: Task[]) => {
     const map: Record<string, Task[]> = {};
     STATUSES.forEach((s) => {
@@ -70,65 +66,47 @@ export default function ProjectBoardPage() {
     return map;
   };
 
-  // Handle drag and drop (reorder + move between columns)
+  // Handle drag and drop
   const onDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result;
     if (!destination) return;
 
-    // same place
     if (
       destination.droppableId === source.droppableId &&
       destination.index === source.index
-    ) {
-      return;
-    }
+    ) return;
 
     const prevTasks = [...tasks];
-
-    // Build column lists
     const cols = buildColumns(tasks);
-
-    // Find task being moved
     const draggedTask = tasks.find((t) => String(t._id) === String(draggableId));
     if (!draggedTask) return;
 
-    // Remove from source column
     const sourceList = Array.from(cols[source.droppableId] || []);
     const [moved] = sourceList.splice(source.index, 1);
 
-    // Update status (if moved across columns)
     moved.status = destination.droppableId as Task["status"];
 
-    // Insert into destination column
     const destList = Array.from(cols[destination.droppableId] || []);
     destList.splice(destination.index, 0, moved);
 
-    // Replace in cols
     cols[source.droppableId] = sourceList;
     cols[destination.droppableId] = destList;
 
-    // Flatten columns back into a single array (keep STATUSES order)
     const newTasksFlattened: Task[] = [];
     STATUSES.forEach((s) => {
       newTasksFlattened.push(...(cols[s.key] || []));
     });
 
-    // Optimistic update
     setTasks(newTasksFlattened);
 
     try {
-      console.log(draggableId);
-
       await api.patch(`/tasks/${draggableId}`, {
         status: moved.status,
         position: destination.index,
         projectId: projectIdStr,
       });
-
-
     } catch (err) {
       console.error("Failed to update task status/order", err);
-      // rollback by attempting a fresh fetch, else restore prev
       try {
         const r = await api.get(`/tasks/${projectIdStr}`);
         const fetched = r?.data?.data?.tasks ?? prevTasks;
@@ -140,26 +118,21 @@ export default function ProjectBoardPage() {
     }
   };
 
-  // Delete task
   const deleteTask = async (id: string) => {
-    // if you want a confirmation UI — integrate a modal; for now, we assume confirmed
     const confirmed = true;
     if (!confirmed) return;
 
     const prev = [...tasks];
-    // Optimistic remove
     setTasks((p) => p.filter((t) => t._id !== id));
 
     try {
       await api.delete(`/tasks/${id}`);
     } catch (err) {
       console.error("Failed to delete task", err);
-      // rollback
       setTasks(prev);
     }
   };
 
-  // Save task (add or edit) — uses _id
   const saveTask = (saved: Task) => {
     const exists = tasks.some((t) => t._id === saved._id);
     if (exists) {
@@ -168,9 +141,9 @@ export default function ProjectBoardPage() {
       setTasks((p) => [saved, ...p]);
     }
   };
+
   return (
     <section className="p-4 md:p-6">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">Project Board</h2>
         <Button
@@ -181,23 +154,21 @@ export default function ProjectBoardPage() {
         </Button>
       </div>
 
-      {/* Loading / Error */}
       {loading && <div className="mb-4">Loading tasks...</div>}
       {error && <div className="mb-4 text-red-600">{error}</div>}
 
-      {/* Kanban Board */}
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {STATUSES.map((col) => (
             <Droppable droppableId={col.key} key={col.key}>
-              {(provided, snapshot) => {
+              {(provided, _snapshotDraggable) => {
+                // Removed unused snapshotDraggable by prefixing with _
                 const columnTasks = tasks.filter((t) => t.status === col.key);
                 return (
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className={`bg-gray-50 rounded-2xl p-4 shadow-sm min-h-[350px] border ${snapshot.isDraggingOver ? "ring-2 ring-blue-300" : ""
-                      }`}
+                    className={`bg-gray-50 rounded-2xl p-4 shadow-sm min-h-[350px] border ${_snapshotDraggable.isDraggingOver ? "ring-2 ring-blue-300" : ""}`}
                   >
                     <h3 className="text-lg font-semibold mb-4">{col.title}</h3>
                     <div className="space-y-3">
@@ -210,7 +181,7 @@ export default function ProjectBoardPage() {
                             draggableId={String(task._id)}
                             index={i}
                           >
-                            {(pd, snapshotDraggable) => (
+                            {(pd) => (
                               <div
                                 ref={pd.innerRef}
                                 {...pd.draggableProps}
@@ -218,10 +189,8 @@ export default function ProjectBoardPage() {
                                 className="bg-white rounded-xl p-3 shadow hover:shadow-md transition"
                               >
                                 <div className="flex justify-between items-start relative">
-                                  {/* Task card */}
                                   <TaskCard task={task} />
 
-                                  {/* Dropdown for Task Actions */}
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                       <Button variant="ghost" size="icon">
@@ -256,7 +225,6 @@ export default function ProjectBoardPage() {
         </div>
       </DragDropContext>
 
-      {/* Task Modals */}
       <TaskModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
